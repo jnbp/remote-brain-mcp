@@ -6,7 +6,7 @@ import pytest
 
 from remote_brain_mcp.errors import VaultError
 
-NOTE = "---\ntype: Project\n---\n# Alpha\n\nline six\nStatus: läuft gut\nlast line\n"
+NOTE = "---\ntype: Project\n---\n# Alpha\n\nline six\nStatus: café is open\nlast line\n"
 
 
 def test_read_whole_note_returns_hash_and_complete(make_vault):
@@ -63,7 +63,7 @@ def test_large_read_is_cut_to_response_limit(make_vault):
 
 def test_search_words_ignores_case_and_accents_and_reports_line(make_vault):
     vault = make_vault({"a.md": NOTE, "b.md": "# Beta\nnothing here\n"})
-    result = vault.search("LAUFT")
+    result = vault.search("CAFE")
     assert [h["path"] for h in result["hits"]] == ["a.md"]
     assert result["hits"][0]["line"] == 7
     assert result["complete"] is True

@@ -55,9 +55,9 @@ def test_placeholder_tokens_are_refused(tmp_path, token):
 
 
 def test_decomposed_unicode_file_names_are_fully_usable(make_vault):
-    nfd = unicodedata.normalize("NFD", "Ordner Ä/Über.md")
+    nfd = unicodedata.normalize("NFD", "Folder Ä/Über.md")
     vault = make_vault({nfd: "# Über\numlaut body\n"}, RB_REQUIRE_HASH_FOR_EDITS="false")
-    nfc = "Ordner Ä/Über.md"
+    nfc = "Folder Ä/Über.md"
     assert vault.search("umlaut")["hits"][0]["path"] == nfc
     assert vault.read_note(nfc)["content"].startswith("# Über")
     vault.edit_note(nfc, "umlaut body", "changed body")

@@ -188,6 +188,9 @@ Errors come back as JSON with a stable `error` code, e.g. `conflict`, `not_found
 | `RB_REQUIRE_HASH_FOR_EDITS` | `true` | Require `expected_sha256` for `edit_note`. |
 | `RB_LOG_LEVEL` | `info` | Logs never contain note contents. |
 
+The compose files pass the most common variables. To use another one (for example
+`RB_TEXT_EXTENSIONS` or `RB_TOKEN_FILE`), add it under `environment:` in your compose file.
+
 ## How your notes are protected
 
 - Paths are relative to the vault; absolute paths, `..` and symlinks are refused everywhere,
