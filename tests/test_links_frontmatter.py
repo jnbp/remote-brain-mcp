@@ -13,7 +13,7 @@ FILES = {
     ),
     "Projects/Beta.md": "---\ntype: Project\nstatus: Paused\n---\nlinks to [[Projects/Alpha]]\n",
     "Archive/Beta.md": "---\ntype: Note\n---\nold beta\n",
-    "Café.md": "# Café\n",
+    "Caf\\u00e9.md": "# Café\n",
 }
 
 
@@ -27,7 +27,7 @@ def test_resolve_link_forms(make_vault):
     beta = vault.resolve_link("Beta")
     assert beta["ambiguous"] is True and beta["matches"] == ["Archive/Beta.md", "Projects/Beta.md"]
     assert vault.resolve_link("Missing")["matches"] == []
-    assert vault.resolve_link("Café")["matches"] == ["Café.md"]  # NFD finds NFC
+    assert vault.resolve_link("Cafe\\u0301")["matches"] == ["Caf\\u00e9.md"]  # NFD finds NFC
     with pytest.raises(VaultError):
         vault.resolve_link("  ")
 
