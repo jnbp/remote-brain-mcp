@@ -76,8 +76,9 @@ Two compose files are provided:
    - `VAULT_PATH` – absolute path to your notes folder
    - `DATA_PATH` – absolute path to the `data` folder
    - `PUID` / `PGID` – user and group that own your notes
-   - `RB_TOKEN` – a long random secret, e.g. `openssl rand -hex 32` (the server refuses the
-     placeholder and anything shorter than 32 characters)
+   - `RB_TOKEN` – leave it empty and the server creates a random token on first start, prints it
+     once in the log and keeps it in `data/token`; or set your own (at least 32 characters,
+     e.g. `openssl rand -hex 32`)
    - `RB_ALLOWED_HOSTS` – **must include the public host name** your tunnel or proxy uses,
      otherwise requests are refused
    - `RB_PUBLISH` – only for `compose.yaml`: where the port is published (see below)
@@ -170,7 +171,7 @@ Errors come back as JSON with a stable `error` code, e.g. `conflict`, `not_found
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `RB_TOKEN` / `RB_TOKEN_FILE` | – | Required. Bearer token (min. 32 characters), or a file containing it. |
+| `RB_TOKEN` / `RB_TOKEN_FILE` | – | Bearer token (min. 32 characters), or a file containing it. If neither is set, the server creates a random token in `<data>/token` on first start and prints it once in the log. |
 | `RB_ALLOWED_HOSTS` | `localhost,127.0.0.1` | Host names the server answers to. Add your public host name. |
 | `RB_ALLOWED_ORIGINS` | – | Origins allowed for browser-based clients. Server-side clients need nothing. |
 | `RB_VAULT_PATH` | `/vault` | Notes folder inside the container. |

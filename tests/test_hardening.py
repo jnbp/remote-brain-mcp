@@ -133,3 +133,14 @@ def test_restore_refuses_symlinked_trash_folder(make_vault, tmp_path):
     with pytest.raises(VaultError) as exc:
         vault.restore_from_trash(item["trash_id"])
     assert exc.value.code == "outside_vault"
+
+
+def test_token_is_created_once_in_data_folder(tmp_path):
+    data = tmp_path / "data"
+    first = Config.from_env({"RB_VAULT_PATH": str(tmp_path), "RB_DATA_PATH": str(data)})
+    assert first.token_generated is True and len(first.token) == 64
+    assert oct((data / "token").stat().st_mode & 0o777) == "0o600"
+    again = Config.from_env({"RB_VAULT_PATH": str(tmp_path), "RB_DATA_PATH": str(data)})
+    assert again.token == first.token and again.token_generated is False
+    explicit = Config.from_env({"RB_VAULT_PATH": str(tmp_path), "RB_DATA_PATH": str(data), "RB_TOKEN": TOKEN})
+    assert explicit.token == TOKEN and explicit.token_generated is False
