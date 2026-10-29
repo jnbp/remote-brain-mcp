@@ -13,7 +13,7 @@ services:
     # Run as the user that owns your notes, so new files keep the right owner.
     user: "${PUID:?set PUID in .env}:${PGID:?set PGID in .env}"
     environment:
-      RB_TOKEN: ${RB_TOKEN:?set RB_TOKEN in .env}
+      RB_TOKEN: ${RB_TOKEN:-}
       RB_ALLOWED_HOSTS: ${RB_ALLOWED_HOSTS:?set RB_ALLOWED_HOSTS in .env}
       RB_SCAN_INTERVAL_SECONDS: ${RB_SCAN_INTERVAL_SECONDS:-60}
       RB_TRASH_RETENTION_DAYS: ${RB_TRASH_RETENTION_DAYS:-90}

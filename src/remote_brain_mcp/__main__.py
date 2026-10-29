@@ -29,6 +29,9 @@ def main() -> None:
         logging.getLogger("mcp").setLevel(logging.WARNING)  # per-request noise from the SDK
     log = logging.getLogger("remote_brain_mcp")
     log.info("remote-brain-mcp %s starting, vault=%s", __version__, config.vault_path)
+    if config.token_generated:
+        log.warning("no RB_TOKEN set: created a new token in %s/token (shown only this once)", config.data_path)
+        log.warning("token: %s", config.token)
 
     vault = Vault(config)
     vault.startup()

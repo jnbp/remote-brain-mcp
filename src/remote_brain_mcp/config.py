@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import secrets
 import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -35,6 +36,28 @@ def _list(env: dict[str, str], name: str, default: str) -> list[str]:
     return [item.strip() for item in raw.split(",") if item.strip()]
 
 
+def _token_from_data(data_path: Path) -> tuple[str, bool]:
+    """Read <data>/token, or create it with a new random token (returns token, created)."""
+    path = data_path / "token"
+    try:
+        return path.read_text(encoding="utf-8").strip(), False
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        raise ConfigError(f"cannot read {path}: {exc}") from exc
+    token = secrets.token_hex(32)
+    try:
+        data_path.mkdir(parents=True, exist_ok=True)
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(token + "\n")
+    except FileExistsError:
+        return path.read_text(encoding="utf-8").strip(), False
+    except OSError as exc:
+        raise ConfigError(f"no RB_TOKEN set and cannot create {path}: {exc}") from exc
+    return token, True
+
+
 @dataclass(frozen=True)
 class Config:
     token: str
@@ -55,18 +78,23 @@ class Config:
     max_response_chars: int = 60_000
     require_hash_for_edits: bool = True
     log_level: str = "info"
+    token_generated: bool = False  # True if the server created a new token file at this start
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> Config:
         env = dict(os.environ if env is None else env)
 
-        token = env.get("RB_TOKEN", "")
+        data_path = Path(env.get("RB_DATA_PATH", "/data"))
+        token = env.get("RB_TOKEN", "").strip()
         token_file = env.get("RB_TOKEN_FILE", "").strip()
+        token_generated = False
         if token_file:
             try:
                 token = Path(token_file).read_text(encoding="utf-8").strip()
             except OSError as exc:
                 raise ConfigError(f"cannot read RB_TOKEN_FILE: {exc}") from exc
+        elif not token:
+            token, token_generated = _token_from_data(data_path)
         token = token.strip()
         lowered = token.lower()
         if any(marker in lowered for marker in ("replace", "change-me", "changeme", "example", "your-token")):
@@ -99,7 +127,7 @@ class Config:
         return cls(
             token=token,
             vault_path=vault_path,
-            data_path=Path(env.get("RB_DATA_PATH", "/data")),
+            data_path=data_path,
             host=env.get("RB_HOST", "0.0.0.0"),
             port=_int(env, "RB_PORT", 8080, 1),
             allowed_hosts=_list(env, "RB_ALLOWED_HOSTS", "localhost,127.0.0.1"),
@@ -117,4 +145,5 @@ class Config:
             max_response_chars=_int(env, "RB_MAX_RESPONSE_CHARS", 60_000, 2_000),
             require_hash_for_edits=require_hash in ("true", "1", "yes"),
             log_level=env.get("RB_LOG_LEVEL", "info").strip().lower(),
+            token_generated=token_generated,
         )
