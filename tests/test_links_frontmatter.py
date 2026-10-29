@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import unicodedata
+
 import pytest
 
 from remote_brain_mcp.errors import VaultError
@@ -27,7 +29,7 @@ def test_resolve_link_forms(make_vault):
     beta = vault.resolve_link("Beta")
     assert beta["ambiguous"] is True and beta["matches"] == ["Archive/Beta.md", "Projects/Beta.md"]
     assert vault.resolve_link("Missing")["matches"] == []
-    assert vault.resolve_link("Café")["matches"] == ["Café.md"]  # NFD finds NFC
+    assert vault.resolve_link(unicodedata.normalize("NFD", "Café"))["matches"] == ["Café.md"]  # NFD finds NFC
     with pytest.raises(VaultError):
         vault.resolve_link("  ")
 
