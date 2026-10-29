@@ -72,7 +72,7 @@ All settings are environment variables. Defaults in brackets.
 
 | Variable | Meaning |
 |---|---|
-| `RB_TOKEN` / `RB_TOKEN_FILE` | Required (one of them). Bearer token, at least 32 characters. `RB_TOKEN_FILE` reads it from a file (for example a Docker secret), so it is not visible in the container settings. The server refuses to start without a valid token. |
+| `RB_TOKEN` / `RB_TOKEN_FILE` | Bearer token, at least 32 characters. `RB_TOKEN_FILE` reads it from a file (for example a Docker secret), so it is not visible in the container settings. If neither is set, the server reads `<RB_DATA_PATH>/token`, or creates it (mode 600) with a random 64-character token on first start and logs the token once. Placeholders and short tokens are refused. |
 | `RB_ALLOWED_ORIGINS` | Optional comma list of allowed `Origin` headers [empty]. |
 | `RB_ALLOWED_HOSTS` | Comma list of host names the server answers to. Requests with another `Host` header are refused (DNS-rebinding protection). [`localhost,127.0.0.1`] **Must include the public tunnel host name**, because the tunnel forwards it; the quick start says so prominently. |
 | `RB_VAULT_PATH` | Vault root inside the container [`/vault`]. |
