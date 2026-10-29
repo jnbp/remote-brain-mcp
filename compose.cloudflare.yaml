@@ -1,0 +1,44 @@
+# remote-brain-mcp with its own Cloudflare Tunnel connector.
+#
+# No port is published on the host: cloudflared reaches the server over a private
+# Docker network. Use this file instead of compose.yaml (rename it to compose.yaml
+# in your project folder if your tool expects that name).
+#
+# In the Cloudflare dashboard: create a tunnel, copy its token into .env as
+# CLOUDFLARE_TUNNEL_TOKEN, and add a public host name that points to
+#   http://remote-brain-mcp:8080
+# Then put that host name into RB_ALLOWED_HOSTS.
+
+services:
+  remote-brain-mcp:
+    image: ghcr.io/jnbp/remote-brain-mcp:latest
+    container_name: remote-brain-mcp
+    restart: unless-stopped
+    user: "${PUID:?set PUID in .env}:${PGID:?set PGID in .env}"
+    environment:
+      RB_TOKEN: ${RB_TOKEN:?set RB_TOKEN in .env}
+      RB_ALLOWED_HOSTS: ${RB_ALLOWED_HOSTS:?set RB_ALLOWED_HOSTS in .env}
+      RB_SCAN_INTERVAL_SECONDS: ${RB_SCAN_INTERVAL_SECONDS:-60}
+      RB_TRASH_RETENTION_DAYS: ${RB_TRASH_RETENTION_DAYS:-90}
+      RB_EXCLUDE: ${RB_EXCLUDE:-}
+      RB_ALLOWED_ORIGINS: ${RB_ALLOWED_ORIGINS:-}
+      RB_LOG_LEVEL: ${RB_LOG_LEVEL:-info}
+    volumes:
+      - ${VAULT_PATH:?set VAULT_PATH in .env}:/vault
+      - ${DATA_PATH:?set DATA_PATH in .env}:/data
+    mem_limit: 256m
+    networks: [brain]
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: remote-brain-cloudflared
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?set CLOUDFLARE_TUNNEL_TOKEN in .env}
+    depends_on: [remote-brain-mcp]
+    mem_limit: 128m
+    networks: [brain]
+
+networks:
+  brain: {}

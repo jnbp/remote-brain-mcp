@@ -1,0 +1,31 @@
+# remote-brain-mcp – Docker Compose
+#
+# 1. Copy `.env.example` to `.env` next to this file and fill in your values.
+# 2. `docker compose up -d` (or create a project from this folder in Synology Container Manager).
+#
+# All settings: see README.md.
+
+services:
+  remote-brain-mcp:
+    image: ghcr.io/jnbp/remote-brain-mcp:latest
+    container_name: remote-brain-mcp
+    restart: unless-stopped
+    # Run as the user that owns your notes, so new files keep the right owner.
+    user: "${PUID:?set PUID in .env}:${PGID:?set PGID in .env}"
+    environment:
+      RB_TOKEN: ${RB_TOKEN:?set RB_TOKEN in .env}
+      RB_ALLOWED_HOSTS: ${RB_ALLOWED_HOSTS:?set RB_ALLOWED_HOSTS in .env}
+      RB_SCAN_INTERVAL_SECONDS: ${RB_SCAN_INTERVAL_SECONDS:-60}
+      RB_TRASH_RETENTION_DAYS: ${RB_TRASH_RETENTION_DAYS:-90}
+      RB_EXCLUDE: ${RB_EXCLUDE:-}
+      RB_ALLOWED_ORIGINS: ${RB_ALLOWED_ORIGINS:-}
+      RB_LOG_LEVEL: ${RB_LOG_LEVEL:-info}
+    volumes:
+      - ${VAULT_PATH:?set VAULT_PATH in .env}:/vault
+      - ${DATA_PATH:?set DATA_PATH in .env}:/data
+    # Where the server is reachable for your tunnel or reverse proxy.
+    # Default: only on this machine. Use e.g. "8765" to reach it from your LAN
+    # (for a tunnel connector running in another container or on another host).
+    ports:
+      - "${RB_PUBLISH:-127.0.0.1:8080}:8080"
+    mem_limit: 256m
