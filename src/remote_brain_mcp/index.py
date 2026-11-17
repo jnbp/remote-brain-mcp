@@ -348,6 +348,41 @@ class Index:
                 result.append({"path": path, "line": line, "text": text})
         return result, ambiguous
 
+    def all_links(self, path_prefix: str) -> list[tuple[str, int, str, str]]:
+        """(source path, line, normalised target, line text) for every link in the prefix."""
+        sql = ("SELECT n.path, l.line, l.target_norm, l.text FROM links l JOIN notes n ON n.id = l.note_id")
+        params: list[Any] = []
+        if path_prefix:
+            sql += " WHERE n.path = ? OR n.path LIKE ? ESCAPE '\\'"
+            params += [path_prefix, _like_prefix(path_prefix)]
+        sql += " ORDER BY n.path, l.line"
+        with self.lock:
+            return self.conn.execute(sql, params).fetchall()
+
+    def notes_overview(self, path_prefix: str) -> list[tuple[str, str, str, int, int, int]]:
+        """(path, stem_norm, fm_json, body_line_offset, mtime_ns, size) for every note in the prefix."""
+        sql = "SELECT path, stem_norm, fm_json, body_line_offset, mtime_ns, size FROM notes"
+        params: list[Any] = []
+        if path_prefix:
+            sql += " WHERE path = ? OR path LIKE ? ESCAPE '\\'"
+            params += [path_prefix, _like_prefix(path_prefix)]
+        sql += " ORDER BY path"
+        with self.lock:
+            return self.conn.execute(sql, params).fetchall()
+
+    def changed_since(self, since_ns: int, path_prefix: str, limit: int) -> tuple[list[tuple[str, str, int, int]], bool]:
+        """(path, title, mtime_ns, size) of notes modified at or after since_ns, newest first."""
+        sql = "SELECT path, title, mtime_ns, size FROM notes WHERE mtime_ns >= ?"
+        params: list[Any] = [since_ns]
+        if path_prefix:
+            sql += " AND (path = ? OR path LIKE ? ESCAPE '\\')"
+            params += [path_prefix, _like_prefix(path_prefix)]
+        sql += " ORDER BY mtime_ns DESC, path LIMIT ?"
+        params.append(limit + 1)
+        with self.lock:
+            rows = self.conn.execute(sql, params).fetchall()
+        return rows[:limit], len(rows) <= limit
+
     def find_by_frontmatter(
         self, filters: dict[str, Any], path_prefix: str, limit: int
     ) -> tuple[list[dict[str, Any]], bool]:

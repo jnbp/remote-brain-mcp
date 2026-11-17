@@ -29,7 +29,8 @@ Paths are relative to the vault root, for example "Projects/Alpha/Alpha.md".
 Typical flow: `search` (or `resolve_link` / `find_by_frontmatter`) to find notes, `read_note` to read
 them (it returns `sha256`), then `edit_note` with that `expected_sha256` for a precise change, or
 `append_to_note` to add text. Nothing is deleted: `move_to_trash` keeps items restorable with
-`restore_from_trash` until they expire. Responses carry `complete`; if it is false, fetch the rest
+`restore_from_trash` until they expire. For upkeep, `check_vault` lists broken links and missing
+frontmatter in one call, and `recent_changes` shows what changed since a given time. Responses carry `complete`; if it is false, fetch the rest
 (for example with `next_start_line`).
 """
 
@@ -105,6 +106,31 @@ def build_mcp(vault: Vault) -> MCPServer:
     def find_by_frontmatter(filters: dict[str, Any], path_prefix: str | None = None, limit: int = 100) -> str:
         return _tool(vault.find_by_frontmatter, "find_by_frontmatter")(
             filters=filters, path_prefix=path_prefix, limit=limit
+        )
+
+    @mcp.tool(structured_output=False, description=(
+        "Check the vault for upkeep problems in one call: broken links, ambiguous links, duplicate note "
+        "names, unreadable frontmatter, missing frontmatter fields and files the index skipped. "
+        "required_fields is optional: a list of fields every note needs, or an object mapping a `type` "
+        "value (case-insensitive; \"*\" for all notes) to its required fields, e.g. {\"*\": [\"type\"], "
+        "\"Project\": [\"status\", \"belongs_to\"]}. path_prefix limits the check to a folder. Links to hidden or excluded files count as broken."
+    ))
+    def check_vault(path_prefix: str | None = None, required_fields: dict[str, list[str]] | list[str] | None = None,
+                    limit: int = 200) -> str:
+        return _tool(vault.check_vault, "check_vault")(
+            path_prefix=path_prefix, required_fields=required_fields, limit=limit
+        )
+
+    @mcp.tool(structured_output=False, description=(
+        "Notes created or changed since a point in time, newest first, plus items moved to the trash "
+        "since then. Use since (ISO 8601, e.g. '2026-11-16' or '2026-11-16T06:00:00+01:00') or hours "
+        "(default 24); a date or time without time zone counts as UTC. A move without content change "
+        "keeps the old modification time."
+    ))
+    def recent_changes(since: str | None = None, hours: int | None = None, path_prefix: str | None = None,
+                       limit: int = 100) -> str:
+        return _tool(vault.recent_changes, "recent_changes")(
+            since=since, hours=hours, path_prefix=path_prefix, limit=limit
         )
 
     @mcp.tool(structured_output=False, description=(
