@@ -80,13 +80,24 @@ class Vault:
             raise VaultError("invalid_argument", f"{name} must be a positive integer")
         return min(value, maximum)
 
-    def _fit(self, result: dict[str, Any], key: str) -> dict[str, Any]:
-        """Drop list items from the end until the JSON fits the response limit."""
-        items = result[key]
-        while items and len(json.dumps(result, ensure_ascii=False)) > self.config.max_response_chars:
-            items.pop()
-            result["complete"] = False
+    def _fit(self, result: dict[str, Any], *keys: str) -> dict[str, Any]:
+        """Drop list items from the end until the JSON fits the response limit.
+        With several keys, the first list is shortened first."""
+        for key in keys:
+            items = result[key]
+            while items and len(json.dumps(result, ensure_ascii=False)) > self.config.max_response_chars:
+                items.pop()
+                result["complete"] = False
         return result
+
+    def _frontmatter_is_empty(self, rel: str, fm_lines: int) -> bool:
+        """True if the frontmatter block holds only blank lines and comments (valid, but empty)."""
+        try:
+            _, _, _, text, _ = self._read_existing_note(rel)
+        except VaultError:
+            return False
+        inner = split_lines(text)[1 : max(1, fm_lines - 1)]
+        return all(not line.strip() or line.lstrip().startswith("#") for line in inner)
 
     def _note_path(self, rel: str) -> tuple[str, Path]:
         clean, absolute = self.paths.resolve(rel)
@@ -348,6 +359,130 @@ class Vault:
         prefix = self.paths.normalize(path_prefix, allow_root=True) if path_prefix else ""
         results, complete = self.index.find_by_frontmatter(filters, prefix, limit)
         return self._fit({"results": results, "complete": complete}, "results")
+
+    # ================================================================== upkeep
+
+    @staticmethod
+    def _required_rules(required_fields: Any) -> dict[str, list[str]]:
+        """Normalise required_fields: a list applies to every note, a dict maps a `type` value
+        (or "*" for all notes) to the fields notes of that type must have."""
+        if required_fields is None:
+            return {}
+        if isinstance(required_fields, list):
+            required_fields = {"*": required_fields}
+        if not isinstance(required_fields, dict):
+            raise VaultError("invalid_argument", "required_fields must be a list or an object of type: [fields]")
+        rules: dict[str, list[str]] = {}
+        for key, fields in required_fields.items():
+            if isinstance(fields, str):
+                fields = [fields]
+            if not isinstance(fields, list) or not all(isinstance(f, str) and f.strip() for f in fields):
+                raise VaultError("invalid_argument", f"required_fields[{key!r}] must be a list of field names")
+            rules[str(key)] = [f.strip() for f in fields]
+        return rules
+
+    def check_vault(
+        self, path_prefix: str | None = None, required_fields: Any = None, limit: int | None = None
+    ) -> dict[str, Any]:
+        """Find upkeep problems in one call: broken and ambiguous links, duplicate note names,
+        unreadable frontmatter, missing frontmatter fields and files the index skipped."""
+        limit = self._limit(limit, "limit", 200, 2000)
+        prefix = self.paths.normalize(path_prefix, allow_root=True) if path_prefix else ""
+        rules = self._required_rules(required_fields)
+        files = self._all_visible_files()
+        with self.lock:
+            notes = self.index.notes_overview("")
+            links = self.index.all_links(prefix)
+            skipped = dict(self.skipped)
+        resolve = self._resolver(files)
+
+        def in_prefix(rel: str) -> bool:
+            return not prefix or rel == prefix or rel.startswith(prefix + "/")
+
+        issues: list[dict[str, Any]] = []
+        for source, line, target, text in links:
+            status, matches = resolve(target)
+            if status == "none":
+                issues.append({"kind": "broken_link", "path": source, "line": line, "link": target, "text": text})
+            elif status == "ambiguous":
+                issues.append({"kind": "ambiguous_link", "path": source, "line": line, "link": target,
+                               "matches": sorted(matches)[:10], "text": text})
+        by_stem: dict[str, list[str]] = {}
+        checked = 0
+        for rel, stem, fm_json, fm_lines, _mtime, _size in notes:
+            by_stem.setdefault(stem, []).append(rel)
+            if not in_prefix(rel):
+                continue
+            checked += 1
+            try:
+                fm = json.loads(fm_json)
+            except ValueError:
+                fm = {}
+            if fm_lines > 2 and not fm and not self._frontmatter_is_empty(rel, fm_lines):
+                issues.append({"kind": "unreadable_frontmatter", "path": rel})
+                continue
+            wanted = list(rules.get("*", []))
+            note_type = fm.get("type")
+            if isinstance(note_type, str):
+                for key, fields in rules.items():
+                    if key != "*" and key.casefold() == note_type.strip().casefold():
+                        wanted += [f for f in fields if f not in wanted]
+            missing = [f for f in wanted if fm.get(f) in (None, "", [], {})]
+            if missing:
+                issues.append({"kind": "missing_fields", "path": rel, "type": note_type, "missing": missing})
+        for paths in by_stem.values():
+            if len(paths) > 1 and any(in_prefix(p) for p in paths):
+                issues.append({"kind": "duplicate_name", "path": min(paths), "paths": sorted(paths)})
+        for rel, reason in sorted(skipped.items()):
+            if in_prefix(rel):
+                issues.append({"kind": "skipped", "path": rel, "reason": reason})
+
+        order = ["broken_link", "ambiguous_link", "duplicate_name", "unreadable_frontmatter",
+                 "missing_fields", "skipped"]
+        issues.sort(key=lambda i: (order.index(i["kind"]), i["path"], i.get("line", 0)))
+        counts = {kind: sum(1 for i in issues if i["kind"] == kind) for kind in order}
+        result = {"path_prefix": prefix or ".", "notes_checked": checked, "counts": counts,
+                  "issues": issues[:limit], "complete": len(issues) <= limit}
+        return self._fit(result, "issues")
+
+    def recent_changes(
+        self, since: str | None = None, hours: int | None = None, path_prefix: str | None = None,
+        limit: int | None = None,
+    ) -> dict[str, Any]:
+        """Notes created or changed since a point in time, newest first, plus items trashed since."""
+        limit = self._limit(limit, "limit", 100, 1000)
+        if since is not None and hours is not None:
+            raise VaultError("invalid_argument", "pass either since or hours, not both")
+        if since is not None:
+            if not isinstance(since, str):
+                raise VaultError("invalid_argument", "since must be an ISO 8601 date or time")
+            try:
+                start = datetime.fromisoformat(since.strip())
+            except ValueError as exc:
+                raise VaultError("invalid_argument", "since must be an ISO 8601 date or time, "
+                                 "e.g. 2026-11-16 or 2026-11-16T06:00:00+01:00") from exc
+            if start.tzinfo is None:
+                start = start.replace(tzinfo=UTC)
+        else:
+            start = datetime.now(UTC) - timedelta(hours=self._limit(hours, "hours", 24, 24 * 366))
+        prefix = self.paths.normalize(path_prefix, allow_root=True) if path_prefix else ""
+        rows, complete = self.index.changed_since(int(start.timestamp() * 1_000_000_000), prefix, limit)
+        changes = [
+            {"path": rel, "title": title, "modified": _iso(mtime_ns / 1e9), "size": size}
+            for rel, title, mtime_ns, size in rows
+        ]
+        all_trashed = [
+            {"trash_id": name, "original_path": meta["original_path"], "trashed_at": meta["trashed_at"]}
+            for name, _, meta in self._trash_entries()
+            if meta["_trashed"] >= start
+            and (not prefix or meta["original_path"] == prefix or meta["original_path"].startswith(prefix + "/"))
+        ]
+        trashed = all_trashed[:limit]
+        complete = complete and len(all_trashed) <= limit
+        age = round(time.time() - self.last_scan_finished) if self.last_scan_finished else None
+        result = {"since": start.isoformat(timespec="seconds"), "changes": changes, "trashed": trashed,
+                  "index_age_seconds": age, "complete": complete}
+        return self._fit(result, "trashed", "changes")
 
     # ================================================================== writing
 
@@ -731,7 +866,7 @@ class Vault:
             if update_links and (not link_safe_path(dst_rel) or dst_stem != dst_stem.strip()):
                 raise VaultError(
                     "invalid_argument",
-                    "the new path cannot be written into a wikilink (it contains [ ] | # ^ ` \\, "
+                    "the new path cannot be written into a wikilink (it contains [ ] | # ^ ` \\\\, "
                     "control characters or spaces at the start or end of a name); choose another "
                     "name or pass update_links=false",
                     path=dst_rel,
