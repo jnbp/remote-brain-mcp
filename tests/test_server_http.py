@@ -22,6 +22,7 @@ EXPECTED_TOOLS = {
     "get_status", "list_folder", "read_note", "search", "resolve_link", "get_backlinks",
     "find_by_frontmatter", "create_note", "edit_note", "append_to_note", "replace_note",
     "move_note", "edit_section", "move_to_trash", "list_trash", "restore_from_trash",
+    "check_vault", "recent_changes",
 }
 ACCEPT = "application/json, text/event-stream"
 

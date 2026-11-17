@@ -1,6 +1,6 @@
 # remote-brain-mcp – Specification
 
-Status: implemented in v0.1.0.
+Status: implemented in v0.2.0.
 
 ## 1. Purpose
 
@@ -142,6 +142,8 @@ searching and writing tools work on notes only and return `not_a_note` otherwise
 | `search` | `query`, `path_prefix=None`, `limit=20` (max 100), `mode="words"` or `"substring"` | hits with `path`, `title`, `snippet`, `line` (first matching line), `score`; `index_age_seconds`; `complete`. |
 | `resolve_link` | `link`, for example `Project Alpha` or `[[Project Alpha#Status]]` | matching note paths; `ambiguous: true` if more than one. |
 | `get_backlinks` | `path` | notes that link to it, with the linking line. |
+| `recent_changes` | `since` (ISO 8601; without time zone = UTC) or `hours=24`, `path_prefix=None`, `limit=100` | notes created or changed since then (`path`, `title`, `modified`, `size`), newest first; items trashed since then; `complete`. A move without content change keeps the old time. |
+| `check_vault` | `path_prefix=None`, `required_fields=None` (list for all notes, or object `type` → fields with `"*"` for all), `limit=200` | `issues` with `kind`: `broken_link`, `ambiguous_link` (resolved like `resolve_link`, attachments included), `duplicate_name`, `unreadable_frontmatter`, `missing_fields`, `skipped`; `counts` per kind; `notes_checked`; `complete`. Links in code are ignored; links to hidden or excluded files count as broken; `type` matching is case-insensitive; frontmatter with only blank lines or comments is not unreadable. |
 | `find_by_frontmatter` | `filters` (field → value; a list field matches if it contains the value; `[[X]]` and `X` are equal), `path_prefix=None`, `limit=100` | `path`, `title` and the filtered fields. |
 
 Search details:

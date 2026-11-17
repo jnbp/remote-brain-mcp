@@ -154,6 +154,8 @@ Leave out the two `CF-Access-*` headers if you do not use Cloudflare Access.
 | `resolve_link` | Find the note a `[[wikilink]]` points to; reports ambiguous names. |
 | `get_backlinks` | Notes that link to a note, with the linking line. |
 | `find_by_frontmatter` | Find notes by frontmatter, e.g. `{"type": "Project", "status": "Active"}`. |
+| `recent_changes` | Notes created or changed since a date or in the last hours, plus items trashed since. |
+| `check_vault` | Upkeep check in one call: broken and ambiguous links, duplicate names, unreadable frontmatter, missing frontmatter fields (per `type` if you like), skipped files. |
 | `create_note` | Create a note (never overwrites). |
 | `edit_note` | Replace exactly one passage; needs `expected_sha256` by default. |
 | `append_to_note` | Append text. |
