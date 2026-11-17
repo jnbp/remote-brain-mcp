@@ -866,7 +866,7 @@ class Vault:
             if update_links and (not link_safe_path(dst_rel) or dst_stem != dst_stem.strip()):
                 raise VaultError(
                     "invalid_argument",
-                    "the new path cannot be written into a wikilink (it contains [ ] | # ^ ` \\\\, "
+                    "the new path cannot be written into a wikilink (it contains [ ] | # ^ ` \\, "
                     "control characters or spaces at the start or end of a name); choose another "
                     "name or pass update_links=false",
                     path=dst_rel,
